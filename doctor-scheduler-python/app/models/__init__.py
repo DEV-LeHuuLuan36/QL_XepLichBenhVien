@@ -1,7 +1,7 @@
 # /doctor-scheduler-python/app/models/__init__.py
 
 from .base import Base  
-from .doctor import Doctor
+from .doctor import Doctor, DoctorRole
 from .clinic import Clinic
 from .shift import Shift
 from .leave_request import LeaveRequest
@@ -13,6 +13,7 @@ from .assignment import Assignment
 __all__ = [
     'Base',
     'Doctor',
+    'DoctorRole',
     'Clinic',
     'Shift',
     'LeaveRequest',
@@ -20,4 +21,3 @@ __all__ = [
     'SchedulingJob',
     'Assignment'
 ]
-
