@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Quản lý Phòng khám
+{% endblock %}
+
+{# --- SỬA LỖI: Đổi 'content' thành 'main' --- #}
+{% block main %} 
+<div class="container mt-4">
+    <h3 class="mb-4">Quản lý Phòng khám</h3>
+
+    <div class="row">
+        <!-- CỘT 1: FORM THÊM PHÒNG KHÁM -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Thêm Phòng khám Mới</h5>
+                </div>
+                <div class="card-body">
+                    {# --- SỬA LỖI: Sửa url_for từ 'main_bp' thành 'main' --- #}
+                    <form method="POST" action="{{ url_for('main.manage_clinics') }}"> 
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Tên Phòng khám</label>
+                            {# --- SỬA LỖI: Sửa name từ 'clinic_name' thành 'name' --- #}
+                            <input type="text" class="form-control" id="name" name="name" placeholder="Ví dụ: Phòng khám Nội" required> 
+                        </div>
+                        <div class="mb-3">
+                            <label for="min_doctors_required" class="form-label">Số bác sĩ tối thiểu mỗi ca</label>
+                            {# --- SỬA LỖI: Thêm trường 'min_doctors_required' (thiếu trường location) --- #}
+                            <input type="number" class="form-control" id="min_doctors_required" name="min_doctors_required" value="1" min="1" required>
+                            <div class="form-text">Số lượng BS tối thiểu cần có trong mỗi ca.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                             <i class="bi bi-plus-circle"></i> Thêm Phòng khám
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: BẢNG DANH SÁCH PHÒNG KHÁM -->
+        <div class="col-lg-8">
+             <h5 class="mb-3">Danh sách Phòng khám Hiện có</h5>
+            <div class="card shadow-sm">
+                 <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">ID</th>
+                                    <th scope="col">Tên Phòng khám</th>
+                                    {# --- SỬA LỖI: Sửa cột 'Vị trí' thành 'BS Tối thiểu/Ca' --- #}
+                                    <th scope="col">BS Tối thiểu/Ca</th> 
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# --- SỬA LỖI: Sửa tên biến 'clinics_list' thành 'clinics' --- #}
+                                {% if clinics %} 
+                                    {% for clinic in clinics %} {# Sửa biến lặp #}
+                                    <tr>
+                                        <th scope="row">{{ clinic.id }}</th>
+                                        <td>{{ clinic.name }}</td>
+                                        {# --- SỬA LỖI: Sửa trường 'location' thành 'min_doctors_required' --- #}
+                                        <td>{{ clinic.min_doctors_required }}</td> 
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Chưa có phòng khám nào.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} {# --- Đảm bảo có endblock cho main --- #}

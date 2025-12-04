@@ -1,0 +1,38 @@
+Setting nenv
+Bước 1 cd thư mục project
+	cd project
+Bước 2 Tạo venv
+	python -m venv venv
+Bước 3 active venv có ở dòng terminal
+	.\venv\Scripts\activate
+Bước 4 cài đặt thư viện cần thiết
+	pip install -r requirements.txt
+Bước 5 đường link csdl
+	file .venv -> link CSDL
+Sao chép file này vô tạo csdl
+
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'HospitalSchedulerDB')
+BEGIN
+    CREATE DATABASE [HospitalSchedulerDB]
+    COLLATE Vietnamese_CI_AS; 
+
+    PRINT 'Da tao thanh cong CSDL [HospitalSchedulerDB] voi Collation Vietnamese_CI_AS.';
+END
+ELSE
+BEGIN
+    PRINT 'CSDL [HospitalSchedulerDB] da ton tai.';
+END
+GO
+
+
+Bước 6 cập nhật db
+	flask db upgrade
+Bước 7 render db có sẳn
+	flask seed all
+Bước 10 : Chạy trên terminal
+flask run 
+    + --debug
+        + --no-reload
+
+flask db init
+flask db upgrade

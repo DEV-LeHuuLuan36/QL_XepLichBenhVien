@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Bảng điều khiển Xếp lịch
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- CỘT 1: TẠO TÁC VỤ MỚI -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">1. Tạo Tác vụ Xếp lịch Mới</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Tạo một tác vụ mới (Job) để chuẩn bị xếp lịch cho một khoảng thời gian.</p>
+                    <form method="POST" action="{{ url_for('main.create_scheduling_job') }}">
+                        <div class="mb-3">
+                            <label for="job_name" class="form-label">Tên Tác vụ</label>
+                            <input type="text" class="form-control" id="job_name" name="job_name" 
+                                   placeholder="Ví dụ: Lịch trực tháng 12/2025" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="start_date" class="form-label">Ngày bắt đầu</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="end_date" class="form-label">Ngày kết thúc</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-circle"></i> Tạo Tác vụ
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: DANH SÁCH CÁC TÁC VỤ -->
+        <div class="col-lg-8">
+            <h5 class="mb-3">2. Danh sách Tác vụ & Chạy Thuật toán</h5>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Tên Tác vụ</th>
+                            <th scope="col">Ngày tạo</th>
+                            <th scope="col">Trạng thái</th>
+                            <th scope="col">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if jobs %}
+                            {% for job in jobs %}
+                            <tr>
+                                <td><strong>{{ job.name }}</strong></td>
+                                <td>{{ job.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    {# Hiển thị Badge trạng thái (ĐÃ SỬA: Thêm .value) #}
+                                    {% if job.status.value == 'Pending' %} 
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Chờ xử lý</span>
+                                    {% elif job.status.value == 'Running' %} 
+                                        <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Đang chạy...</span>
+                                    {% elif job.status.value == 'Completed' %} 
+                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Hoàn thành</span>
+                                    {% elif job.status.value == 'Failed' %} 
+                                        <span class="badge bg-danger" title="{{ job.status_message }}"><i class="bi bi-exclamation-triangle"></i> Thất bại</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ job.status.value }}</span> 
+                                    {% endif %}
+                                </td>
+                                
+                                {# === CỘT HÀNH ĐỘNG (ĐÃ SỬA: Thêm .value) === #}
+                                <td class="text-center">
+                                    {# Chỉ hiển thị nút "Chạy" nếu đang Pending hoặc Failed #}
+                                    {% if job.status.value == 'Pending' or job.status.value == 'Failed' %} 
+                                    <form method="POST" action="{{ url_for('main.run_scheduling_job', job_id=job.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-success btn-sm" title="Chạy thuật toán">
+                                            <i class="bi bi-play-fill"></i> Chạy
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    {# Chỉ hiển thị nút "Xem" nếu đã Completed #}
+                                    {% if job.status.value == 'Completed' %} 
+                                    <a href="{{ url_for('main.view_calendar', job_id=job.id) }}" class="btn btn-primary btn-sm" title="Xem kết quả">
+                                        <i class="bi bi-eye"></i> Xem
+                                    </a>
+                                    {% endif %}
+                                </td>
+                                {# === KẾT THÚC CỘT HÀNH ĐỘNG === #}
+                                
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Chưa có tác vụ nào. Hãy tạo một tác vụ mới.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

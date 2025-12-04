@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Trang chủ
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="p-5 mb-4 bg-light rounded-3 shadow-sm border">
+        <div class="container-fluid py-3">
+            <h1 class="display-5 fw-bold">Chào mừng đến với HospitalScheduler!</h1>
+            <p class="col-md-8 fs-5">Hệ thống hỗ trợ xếp lịch trực cho bác sĩ tại bệnh viện sử dụng thuật toán Luyện kim Mô phỏng.</p>
+            <a href="{{ url_for('main.schedule_dashboard') }}" class="btn btn-success btn-lg">
+                <i class="bi bi-calendar-event"></i> Đi đến Bảng Xếp lịch
+            </a>
+        </div>
+    </div>
+
+    <h3 class="mb-3">Tổng quan Dữ liệu</h3>
+    <div class="row g-3">
+        <!-- Card Bác sĩ -->
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <i class="bi bi-person-badge display-4 text-primary mb-2"></i>
+                    <h5 class="card-title">Bác sĩ</h5>
+                    <p class="card-text display-6 fw-bold">{{ doctor_count if doctor_count is not none else 'Lỗi' }}</p>
+                    <a href="{{ url_for('main.manage_doctors') }}" class="btn btn-outline-primary btn-sm">Quản lý</a>
+                </div>
+            </div>
+        </div>
+        <!-- Card Phòng khám -->
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <i class="bi bi-building display-4 text-info mb-2"></i>
+                    <h5 class="card-title">Phòng khám</h5>
+                    <p class="card-text display-6 fw-bold">{{ clinic_count if clinic_count is not none else 'Lỗi' }}</p>
+                    <a href="{{ url_for('main.manage_clinics') }}" class="btn btn-outline-info btn-sm">Quản lý</a>
+                </div>
+            </div>
+        </div>
+        <!-- Card Ca trực -->
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <i class="bi bi-clock-history display-4 text-warning mb-2"></i>
+                    <h5 class="card-title">Ca trực</h5>
+                    <p class="card-text display-6 fw-bold">{{ shift_count if shift_count is not none else 'Lỗi' }}</p>
+                    <a href="{{ url_for('main.manage_shifts') }}" class="btn btn-outline-warning btn-sm">Quản lý</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# --- Hiển thị bác sĩ mới thêm (Nếu có) --- #}
+    {% if recent_doctors %}
+        <h3 class="mt-5 mb-3">Bác sĩ Mới Thêm Gần Đây</h3>
+        <div class="list-group shadow-sm">
+            {% for doctor in recent_doctors %}
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">{{ doctor.name }}</h6>
+                        <small class="text-muted">{{ doctor.specialty }}</small>
+                    </div>
+                    <span class="badge bg-secondary rounded-pill">ID: {{ doctor.id }}</span>
+                </div>
+            {% endfor %}
+             <a href="{{ url_for('main.manage_doctors') }}" class="list-group-item list-group-item-action text-center text-primary">
+                Xem tất cả bác sĩ...
+            </a>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

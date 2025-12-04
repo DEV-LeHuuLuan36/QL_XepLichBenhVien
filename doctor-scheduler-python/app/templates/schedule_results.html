@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Kết quả Xếp lịch: {{ job.name }}
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.schedule_dashboard') }}">Bảng điều khiển</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Kết quả: {{ job.name }}</li>
+        </ol>
+    </nav>
+
+    <h3 class="mb-4">Kết quả Xếp lịch cho: <span class="text-primary">{{ job.name }}</span></h3>
+    <p>Ngày tạo: {{ job.created_at.strftime('%d/%m/%Y %H:%M') }} | Trạng thái: 
+        {% if job.status.value == 'Completed' %}
+            <span class="badge bg-success">Hoàn thành</span>
+        {% else %}
+             <span class="badge bg-secondary">{{ job.status.value }}</span>
+        {% endif %}
+         | Chi phí: {{ job.status_message.split(':')[-1].strip() if job.status.value == 'Completed' else 'N/A' }}
+    </p>
+
+    {% if assignments %}
+        {# Nhóm assignments theo ngày để tính rowspan #}
+        {% set assignments_by_date = {} %}
+        {% for assignment in assignments %}
+            {% set date_str = assignment.assignment_date.strftime('%Y-%m-%d') %}
+            {% if date_str not in assignments_by_date %}
+                {% set _dummy = assignments_by_date.update({date_str: []}) %}
+            {% endif %}
+            {% set _dummy = assignments_by_date[date_str].append(assignment) %}
+        {% endfor %}
+
+        {# Sắp xếp các ngày #}
+        {% set sorted_dates = assignments_by_date.keys() | sort %}
+
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover mb-0 align-middle">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th scope="col" style="width: 15%;">Ngày</th>
+                                <th scope="col" style="width: 20%;">Ca trực</th>
+                                <th scope="col" style="width: 35%;">Bác sĩ</th>
+                                <th scope="col" style="width: 30%;">Phòng khám</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for date_key in sorted_dates %}
+                                {% set daily_assignments = assignments_by_date[date_key] %}
+                                {# Sắp xếp các ca trong ngày theo giờ bắt đầu #}
+                                {% set sorted_daily_assignments = daily_assignments | sort(attribute='shift.start_time') %}
+                                
+                                {% for assignment in sorted_daily_assignments %}
+                                    <tr>
+                                        {# Chỉ hiển thị ngày ở hàng đầu tiên của mỗi ngày #}
+                                        {% if loop.first %}
+                                            <td rowspan="{{ daily_assignments | length }}" class="text-center align-middle fw-bold">
+                                                {{ assignment.assignment_date.strftime('%d/%m/%Y') }}<br>
+                                                <small class="text-muted">{{ ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][assignment.assignment_date.weekday()] }}</small>
+                                            </td>
+                                        {% endif %}
+                                        
+                                        {# Thông tin ca, bác sĩ, phòng khám #}
+                                        <td>
+                                            <strong>{{ assignment.shift.name }}</strong><br>
+                                            <small class="text-muted">{{ assignment.shift.start_time.strftime('%H:%M') }} - {{ assignment.shift.end_time.strftime('%H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            {{ assignment.doctor.name }}
+                                            <small class="d-block text-muted">({{ assignment.doctor.specialty }})</small>
+                                        </td>
+                                        <td>{{ assignment.clinic.name }}</td>
+                                    </tr>
+                                {% endfor %}
+                                {# Thêm đường kẻ ngang giữa các ngày cho dễ nhìn #}
+                                {% if not loop.last %}
+                                 <tr class="table-group-divider"><td colspan="4"></td></tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <div class="alert alert-warning mt-4" role="alert">
+            Không tìm thấy kết quả phân công nào cho tác vụ này.
+        </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{{ url_for('main.schedule_dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Quay lại Bảng điều khiển
+        </a>
+    </div>
+
+</div>
+{% endblock %}

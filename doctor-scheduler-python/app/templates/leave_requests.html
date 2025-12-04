@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Quản lý Đơn xin nghỉ
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h3 class="mb-4">Quản lý Đơn xin nghỉ (Ràng buộc Cứng)</h3>
+
+    <div class="row">
+        <!-- CỘT 1: FORM THÊM ĐƠN NGHỈ -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Thêm Đơn nghỉ Mới</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.manage_leave_requests') }}">
+                        <div class="mb-3">
+                            <label for="doctor_id" class="form-label">Chọn Bác sĩ</label>
+                            <select class="form-select" id="doctor_id" name="doctor_id" required>
+                                <option value="" selected disabled>-- Chọn bác sĩ --</option>
+                                {% for doc in doctors %}
+                                    <option value="{{ doc.id }}">{{ doc.name }} ({{ doc.specialty }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="leave_date" class="form-label">Ngày nghỉ</label>
+                            <input type="date" class="form-control" id="leave_date" name="leave_date" required>
+                        </div>
+                         <div class="mb-3">
+                            <label for="reason" class="form-label">Lý do (Không bắt buộc)</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100">
+                             <i class="bi bi-calendar-x"></i> Thêm Đơn nghỉ
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: BẢNG DANH SÁCH ĐƠN NGHỈ -->
+        <div class="col-lg-8">
+             <h5 class="mb-3">Danh sách Đơn nghỉ Hiện có</h5>
+            <div class="card shadow-sm">
+                 <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Bác sĩ</th>
+                                    <th scope="col">Ngày nghỉ</th>
+                                    <th scope="col">Lý do</th>
+                                    <th scope="col">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if leaves %}
+                                    {% for leave in leaves %}
+                                    <tr>
+                                        <td>
+                                            {{ leave.doctor.name }}
+                                            <small class="d-block text-muted">({{ leave.doctor.specialty }})</small>
+                                        </td>
+                                        {# --- SỬA LỖI: Dùng leave.date --- #}
+                                        <td>{{ leave.date.strftime('%d/%m/%Y') }}</td> 
+                                        <td>{{ leave.reason if leave.reason else '-' }}</td>
+                                        <td>
+                                            {# --- SỬA LỖI: Model không có cột status --- #}
+                                            {# Tạm hiển thị 'Đã duyệt' vì route tự duyệt #}
+                                            <span class="badge bg-success">Đã duyệt</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted">Chưa có đơn xin nghỉ nào.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

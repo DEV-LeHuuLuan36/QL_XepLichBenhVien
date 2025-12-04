@@ -1,0 +1,113 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Quản lý Nguyện vọng
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h3 class="mb-4">Quản lý Nguyện vọng Bác sĩ (Ràng buộc Mềm)</h3>
+
+    <div class="row">
+        <!-- CỘT 1: FORM THÊM NGUYỆN VỌNG -->
+        <div class="col-lg-5 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Thêm Nguyện vọng Mới</h5>
+                </div>
+                <div class="card-body">
+                     <p class="card-text small text-muted">Thiết lập điểm ưu tiên (dương: thích, âm: ghét) cho bác sĩ khi làm việc vào ca/ngày cụ thể.</p>
+                    <form method="POST" action="{{ url_for('main.manage_preferences') }}">
+                        <div class="mb-3">
+                            <label for="doctor_id" class="form-label">Chọn Bác sĩ</label>
+                            <select class="form-select" id="doctor_id" name="doctor_id" required>
+                                <option value="" selected disabled>-- Chọn bác sĩ --</option>
+                                {% for doc in doctors %}
+                                    <option value="{{ doc.id }}">{{ doc.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shift_id" class="form-label">Chọn Ca trực</label>
+                            <select class="form-select" id="shift_id" name="shift_id" required>
+                                <option value="" selected disabled>-- Chọn ca trực --</option>
+                                {% for shift in shifts %}
+                                    <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time.strftime('%H:%M') }}-{{ shift.end_time.strftime('%H:%M') }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="day_of_week" class="form-label">Ngày trong Tuần</label>
+                            <select class="form-select" id="day_of_week" name="day_of_week" required>
+                                <option value="" selected disabled>-- Chọn ngày --</option>
+                                <option value="0">Thứ Hai</option>
+                                <option value="1">Thứ Ba</option>
+                                <option value="2">Thứ Tư</option>
+                                <option value="3">Thứ Năm</option>
+                                <option value="4">Thứ Sáu</option>
+                                <option value="5">Thứ Bảy</option>
+                                <option value="6">Chủ Nhật</option>
+                            </select>
+                        </div>
+                         <div class="mb-3">
+                            <label for="preference_score" class="form-label">Điểm Nguyện vọng</label>
+                            <input type="number" class="form-control" id="preference_score" name="preference_score" placeholder="Ví dụ: 10 (Thích), -20 (Ghét)" required>
+                            <div class="form-text">Số dương = Thích, Số âm = Ghét. Giá trị tuyệt đối càng lớn càng quan trọng.</div>
+                        </div>
+                        <button type="submit" class="btn btn-info w-100 text-white">
+                             <i class="bi bi-sliders"></i> Thêm Nguyện vọng
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: BẢNG DANH SÁCH NGUYỆN VỌNG -->
+        <div class="col-lg-7">
+             <h5 class="mb-3">Danh sách Nguyện vọng Hiện có</h5>
+            <div class="card shadow-sm">
+                 <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Bác sĩ</th>
+                                    <th scope="col">Ca trực</th>
+                                    <th scope="col">Ngày</th>
+                                    <th scope="col">Điểm</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# --- SỬA LỖI: Sửa tên biến 'preferences_list' thành 'preferences' --- #}
+                                {% if preferences %}
+                                    {% set days = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'] %}
+                                    {% for pref in preferences %} {# Sửa biến lặp #}
+                                    <tr>
+                                        <td>{{ pref.doctor.name }}</td>
+                                        <td>{{ pref.shift.name }}</td>
+                                        <td>{{ days[pref.day_of_week] }}</td>
+                                        <td>
+                                            {% if pref.preference_score > 0 %}
+                                                <span class="badge bg-success">+{{ pref.preference_score }}</span>
+                                            {% elif pref.preference_score < 0 %}
+                                                 <span class="badge bg-danger">{{ pref.preference_score }}</span>
+                                            {% else %}
+                                                 <span class="badge bg-secondary">{{ pref.preference_score }}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted">Chưa có nguyện vọng nào.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
