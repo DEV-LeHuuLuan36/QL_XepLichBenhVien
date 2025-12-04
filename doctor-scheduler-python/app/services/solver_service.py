@@ -4,210 +4,202 @@ from simanneal import Annealer
 import datetime
 from collections import defaultdict
 from typing import List, Dict, Tuple, Any 
-from app.models import Doctor, Clinic, Shift, LeaveRequest, SchedulePreference
+from app.models import Doctor, Clinic, Shift, DoctorRole
 
 # =================================================================
-# LỚP DÙNG ĐỂ CHỨA DỮ LIỆU NGỮ CẢNH (QUAN TRỌNG)
+# 1. NGỮ CẢNH DỮ LIỆU (Context)
 # =================================================================
 class ScheduleContextData:
     """
-    Lưu trữ tất cả dữ liệu đầu vào cần thiết cho thuật toán,
-    đã được xử lý thành dạng map để truy cập nhanh.
+    Chứa toàn bộ dữ liệu readonly cần thiết cho thuật toán.
+    Được tối ưu hóa (indexing) để truy xuất nhanh.
     """
-    def __init__(self, 
-                 doctors: List[Doctor], 
-                 clinics: List[Clinic], 
-                 shifts: List[Shift], 
-                 leaves_map: Dict[Tuple[int, datetime.date], bool], 
-                 preferences_map: Dict[Tuple[int, int, int], int], 
-                 date_range: List[datetime.date],
-                 doctors_map: Dict[int, Doctor], 
-                 clinics_map: Dict[int, Clinic], 
-                 shifts_map: Dict[int, Shift]     
-                 ):
-        self.doctors: List[Doctor] = doctors
-        self.clinics: List[Clinic] = clinics
-        self.shifts: List[Shift] = shifts
-        self.leaves_map: Dict[Tuple[int, datetime.date], bool] = leaves_map
-        self.preferences_map: Dict[Tuple[int, int, int], int] = preferences_map
-        self.date_range: List[datetime.date] = date_range
-        self.doctors_map: Dict[int, Doctor] = doctors_map
-        self.clinics_map: Dict[int, Clinic] = clinics_map
-        self.shifts_map: Dict[int, Shift] = shifts_map
+    def __init__(self, doctors, clinics, shifts, leaves_map, preferences_map, date_range, 
+                 doctors_map, clinics_map, shifts_map):
+        self.doctors = doctors
+        self.clinics = clinics
+        self.shifts = shifts
+        self.leaves_map = leaves_map
+        self.preferences_map = preferences_map
+        self.date_range = date_range
+        
+        # Maps cơ bản
+        self.doctors_map = doctors_map
+        self.clinics_map = clinics_map
+        self.shifts_map = shifts_map
+
+        # --- TỐI ƯU: Phân nhóm bác sĩ theo Khoa và Vai trò ---
+        # Cấu trúc: doctors_by_clinic[clinic_id]['main'] = [list of doctor_ids]
+        self.doctors_by_clinic = defaultdict(lambda: {'main': [], 'sub': []})
+        
+        for doc in doctors:
+            if doc.clinic_id: # Chỉ quan tâm bác sĩ có biên chế
+                role_key = 'main' if doc.role == DoctorRole.MAIN else 'sub'
+                self.doctors_by_clinic[doc.clinic_id][role_key].append(doc.id)
 
 # =================================================================
-# LỚP ĐẠI DIỆN CHO MỘT GIẢI PHÁP (LỊCH TRÌNH HOÀN CHỈNH)
+# 2. TRẠNG THÁI (State)
 # =================================================================
 class ScheduleState:
     """
-    Đại diện cho một trạng thái (một lịch trình hoàn chỉnh).
-    assignments là một dict lồng nhau: date -> clinic_id -> shift_id -> [doctor_ids]
+    Đại diện cho một phương án xếp lịch.
     """
-    def __init__(self, assignments: Dict[datetime.date, Dict[int, Dict[int, List[int]]]]):
-        self.assignments: Dict[datetime.date, Dict[int, Dict[int, List[int]]]] = assignments
+    def __init__(self, assignments):
+        # Cấu trúc assignments: date -> clinic_id -> shift_id -> [doctor_ids]
+        self.assignments = assignments
 
     def copy(self):
-        """Tạo một bản sao sâu (deep copy) của trạng thái."""
+        # Deep copy thủ công để tối ưu tốc độ hơn deepcopy mặc định
         new_assignments = {}
-        for date, clinic_data in self.assignments.items():
+        for date, c_data in self.assignments.items():
             new_assignments[date] = {}
-            for clinic_id, shift_data in clinic_data.items():
-                new_assignments[date][clinic_id] = {}
-                for shift_id, doctor_ids in shift_data.items():
-                    new_assignments[date][clinic_id][shift_id] = doctor_ids[:] 
+            for cid, s_data in c_data.items():
+                new_assignments[date][cid] = {}
+                for sid, doc_ids in s_data.items():
+                    new_assignments[date][cid][sid] = list(doc_ids)
         return ScheduleState(new_assignments)
+
 # =================================================================
-# LỚP TÍNH CHI PHÍ (HÀM NĂNG LƯỢNG)
+# 3. HÀM MỤC TIÊU (Cost Function) - Logic Cốt Lõi
 # =================================================================
 class CostFunction:
-    """
-    Tính toán chi phí (độ "xấu") của một lịch trình (ScheduleState).
-    Chi phí càng thấp, lịch trình càng tốt.
-    """
     def __init__(self, context: ScheduleContextData):
-        self.context: ScheduleContextData = context
-        # Trọng số cho các loại vi phạm (có thể điều chỉnh)
-        self.HARD_CONSTRAINT_PENALTY = 10000  
-        self.PREFERENCE_WEIGHT = 1           # Điểm cho nguyện vọng (mềm)
-        # TODO: Thêm các trọng số khác (ví dụ: cân bằng ca, nghỉ cuối tuần...)
+        self.ctx = context
+        # Trọng số phạt (Penalty Weights)
+        self.W_HARD = 10000 # Vi phạm luật (48h, nghỉ 12h, role) -> Phạt cực nặng
+        self.W_SOFT = 10    # Nguyện vọng -> Phạt nhẹ
 
     def calculate_cost(self, state: ScheduleState) -> float:
-        """Tính tổng chi phí của lịch trình."""
         total_cost = 0.0
-
-        # 1. Kiểm tra Ràng buộc CỨNG (Hard Constraints)
-        total_cost += self._check_leave_requests(state) * self.HARD_CONSTRAINT_PENALTY
-        total_cost += self._check_min_doctors(state) * self.HARD_CONSTRAINT_PENALTY
-        # TODO: Thêm các kiểm tra ràng buộc cứng khác (ví dụ: không làm 2 ca cùng lúc)
         
-        # 2. Tính điểm Ràng buộc MỀM (Soft Constraints)
-        total_cost -= self._calculate_preference_score(state) * self.PREFERENCE_WEIGHT
-        # TODO: Thêm các tính điểm ràng buộc mềm khác (ví dụ: cân bằng số ca...)
+        # Dữ liệu tạm để tính toán luật lao động
+        # doc_shift_history: doc_id -> danh sách các thời điểm bắt đầu ca trực (datetime)
+        doc_shift_history = defaultdict(list) 
+
+        # --- DUYỆT QUA TOÀN BỘ LỊCH ĐỂ TÍNH PHẠT CẤU TRÚC CA ---
+        for date, c_data in state.assignments.items():
+            for clinic_id, s_data in c_data.items():
+                # Lấy thông tin yêu cầu của khoa
+                clinic = self.ctx.clinics_map.get(clinic_id)
+                if not clinic: continue
+
+                for shift_id, doc_ids in s_data.items():
+                    shift = self.ctx.shifts_map.get(shift_id)
+                    if not shift: continue
+
+                    # Đếm số lượng Chính/Phụ thực tế trong ca
+                    count_main = 0
+                    count_sub = 0
+                    
+                    # Thời điểm bắt đầu ca (để tính nghỉ ngơi)
+                    shift_start_dt = datetime.datetime.combine(date, shift.start_time)
+                    
+                    for doc_id in doc_ids:
+                        doc = self.ctx.doctors_map.get(doc_id)
+                        if not doc: continue
+
+                        if doc.role == DoctorRole.MAIN: 
+                            count_main += 1
+                        else: 
+                            count_sub += 1
+                        
+                        # Lưu lịch sử trực của bác sĩ
+                        doc_shift_history[doc_id].append(shift_start_dt)
+                        
+                        # Check đơn nghỉ (Leave Request)
+                        if self.ctx.leaves_map.get((doc_id, date), False):
+                            total_cost += self.W_HARD # Phạt nếu đi làm ngày xin nghỉ
+
+                    # 1. KIỂM TRA ĐỊNH BIÊN (Thiếu người là phạt)
+                    if count_main < clinic.required_main:
+                        total_cost += (clinic.required_main - count_main) * self.W_HARD
+                    if count_sub < clinic.required_sub:
+                        total_cost += (clinic.required_sub - count_sub) * self.W_HARD
+        
+        # --- KIỂM TRA LUẬT LAO ĐỘNG (Theo từng Bác sĩ) ---
+        SHIFT_DURATION_HOURS = 8 # Giả định mỗi ca 8 tiếng
+        
+        for doc_id, shifts_list in doc_shift_history.items():
+            # Sắp xếp lịch sử trực theo thời gian tăng dần
+            shifts_list.sort()
+            
+            # 2. KHÔNG QUÁ 48H / TUẦN (Trong phạm vi job này)
+            total_hours = len(shifts_list) * SHIFT_DURATION_HOURS
+            if total_hours > 48:
+                # Phạt dựa trên số giờ vượt
+                total_cost += (total_hours - 48) * self.W_HARD
+            
+            # 3. KIỂM TRA NGHỈ NGƠI & 1 CA/NGÀY
+            # Kiểm tra khoảng cách giữa các ca
+            for i in range(len(shifts_list) - 1):
+                current_start = shifts_list[i]
+                next_start = shifts_list[i+1]
+                
+                # Ca hiện tại kết thúc lúc: Start + 8h
+                current_end = current_start + datetime.timedelta(hours=SHIFT_DURATION_HOURS)
+                
+                # Thời gian nghỉ (giờ)
+                rest_time_hours = (next_start - current_end).total_seconds() / 3600
+                
+                # Luật: Tối thiểu 12h nghỉ
+                if rest_time_hours < 12:
+                    total_cost += self.W_HARD # Phạt nặng vi phạm nghỉ ngơi
+                
+                # Luật: Không quá 1 ca/ngày (check ngày)
+                if current_start.date() == next_start.date():
+                     total_cost += self.W_HARD * 2 # Phạt rất nặng nếu làm 2 ca cùng ngày
 
         return total_cost
 
-    def _check_leave_requests(self, state: ScheduleState) -> int:
-        """Đếm số lần bác sĩ bị xếp lịch vào ngày nghỉ."""
-        violations = 0
-        for date, clinic_data in state.assignments.items():
-            for clinic_id, shift_data in clinic_data.items():
-                for shift_id, doctor_ids in shift_data.items():
-                    for doc_id in doctor_ids:
-                        if self.context.leaves_map.get((doc_id, date), False):
-                            violations += 1
-        return violations
-
-    def _check_min_doctors(self, state: ScheduleState) -> int:
-        """Đếm số lần một ca bị thiếu bác sĩ so với yêu cầu tối thiểu."""
-        violations = 0
-        for date, clinic_data in state.assignments.items():
-            for clinic_id, shift_data in clinic_data.items():
-                clinic = self.context.clinics_map.get(clinic_id)
-                if not clinic: continue 
-                
-                min_required = clinic.min_doctors_required
-                
-                for shift_id, doctor_ids in shift_data.items():
-                    if len(doctor_ids) < min_required:
-                        violations += (min_required - len(doctor_ids)) 
-        return violations
-
-    def _calculate_preference_score(self, state: ScheduleState) -> int:
-        """Tính tổng điểm nguyện vọng của lịch trình."""
-        total_score = 0
-        for date, clinic_data in state.assignments.items():
-            day_of_week = date.weekday() # 0 = Monday, 6 = Sunday
-            for clinic_id, shift_data in clinic_data.items():
-                for shift_id, doctor_ids in shift_data.items():
-                    for doc_id in doctor_ids:
-                        # Lấy điểm nguyện vọng từ map, mặc định là 0 nếu không có
-                        score = self.context.preferences_map.get((doc_id, shift_id, day_of_week), 0)
-                        total_score += score
-        return total_score
-
 # =================================================================
-# LỚP THUẬT TOÁN LUYỆN KIM MÔ PHỎNG (SIMULATED ANNEALING)
+# 4. ANNEALER (Bộ giải thuật toán)
 # =================================================================
 class ScheduleAnnealer(Annealer):
-    """
-    Triển khai thuật toán Simulated Annealing để tối ưu lịch trình.
-    """
-    def __init__(self, initial_state: ScheduleState, cost_function: CostFunction):
+    def __init__(self, initial_state, cost_function):
         self.cost_function = cost_function
-        # Gọi __init__ của lớp cha (Annealer) với trạng thái ban đầu
-        super(ScheduleAnnealer, self).__init__(initial_state) 
+        super(ScheduleAnnealer, self).__init__(initial_state)
 
     def move(self):
         """
-        Tạo ra một lịch trình "hàng xóm" bằng cách thay đổi nhỏ lịch trình hiện tại.
+        Hàm biến đổi trạng thái (Mutation).
+        Chiến lược: Chỉ thay đổi bác sĩ trong cùng 1 Khoa và cùng Vai trò 
+        để giữ cấu trúc định biên (Initial Solution đã đúng định biên rồi).
         """
-        # Chọn ngẫu nhiên một loại thay đổi
-        # Kiểm tra xem có đủ bác sĩ để swap không
-        can_swap = len(self.cost_function.context.doctors) >= 2
-        move_type = random.choice(['move_doctor', 'swap_doctors'] if can_swap else ['move_doctor']) 
-        if move_type == 'swap_doctors':
-            self._swap_doctors_random_shift()
-        elif move_type == 'move_doctor':
-             self._move_doctor_random_shift()
-
-    def _swap_doctors_random_shift(self):
-        """
-        Chọn ngẫu nhiên 2 bác sĩ TRONG CÙNG MỘT CA và hoán đổi vị trí của họ.
-        """
-        possible_slots = []
-        for date, clinic_data in self.state.assignments.items():
-            for clinic_id, shift_data in clinic_data.items():
-                for shift_id, doctor_ids in shift_data.items():
-                    if len(doctor_ids) >= 2:
-                        possible_slots.append((date, clinic_id, shift_id))
+        ctx = self.cost_function.ctx
         
-        if not possible_slots:
-            return 
-
-        date, clinic_id, shift_id = random.choice(possible_slots)
-        doctors_in_shift = self.state.assignments[date][clinic_id][shift_id]
+        # 1. Chọn ngẫu nhiên 1 slot (Ngày, Khoa, Ca)
+        if not ctx.date_range or not ctx.clinics or not ctx.shifts: return
         
-        idx1, idx2 = random.sample(range(len(doctors_in_shift)), 2)
-        doctors_in_shift[idx1], doctors_in_shift[idx2] = doctors_in_shift[idx2], doctors_in_shift[idx1]
-
-
-    def _move_doctor_random_shift(self):
-        """
-        Chọn ngẫu nhiên 1 bác sĩ và di chuyển họ sang một ca NGẪU NHIÊN khác.
-        """
-        source_slots = []
-        for date, clinic_data in self.state.assignments.items():
-            for clinic_id, shift_data in clinic_data.items():
-                for shift_id, doctor_ids in shift_data.items():
-                    if doctor_ids: 
-                        source_slots.append((date, clinic_id, shift_id))
+        date = random.choice(ctx.date_range)
+        clinic_id = random.choice(list(ctx.clinics_map.keys()))
+        shift_id = random.choice(list(ctx.shifts_map.keys()))
         
-        if not source_slots:
-            return 
+        current_docs = self.state.assignments[date][clinic_id][shift_id]
+        if not current_docs: return
+        
+        # 2. Chọn 1 bác sĩ đang trực để thay ra (OUT)
+        doc_out_id = random.choice(current_docs)
+        doc_out = ctx.doctors_map.get(doc_out_id)
+        if not doc_out: return
 
-        s_date, s_clinic, s_shift = random.choice(source_slots)
-        doctors_in_source = self.state.assignments[s_date][s_clinic][s_shift]
+        # 3. Tìm người thay thế (IN) hợp lệ:
+        # - Phải CÙNG KHOA (clinic_id)
+        # - Phải CÙNG VAI TRÒ (Main đổi Main, Sub đổi Sub)
+        role_key = 'main' if doc_out.role == DoctorRole.MAIN else 'sub'
+        candidates = ctx.doctors_by_clinic[clinic_id][role_key]
         
-        doc_to_move = random.choice(doctors_in_source)
+        if not candidates: return
+        
+        doc_in_id = random.choice(candidates)
+        
+        # Nếu người vào đã có trong ca này rồi thì bỏ qua (tránh trùng lặp)
+        if doc_in_id in current_docs:
+            return
 
-       
-        all_dates = self.cost_function.context.date_range
-        all_clinics = list(self.cost_function.context.clinics_map.keys())
-        all_shifts = list(self.cost_function.context.shifts_map.keys())
-        
-        d_date = random.choice(all_dates)
-        d_clinic = random.choice(all_clinics)
-        d_shift = random.choice(all_shifts)
+        # Thực hiện hoán đổi
+        # Vì assignments là list of ints, ta cần thao tác cẩn thận
+        current_docs.remove(doc_out_id)
+        current_docs.append(doc_in_id)
 
-        doctors_in_source.remove(doc_to_move)
-        
-        doctors_in_dest = self.state.assignments[d_date][d_clinic][d_shift]
-        if doc_to_move not in doctors_in_dest:
-            doctors_in_dest.append(doc_to_move)
-        
-    def energy(self) -> float:
-        """
-        Tính toán năng lượng (chi phí) của trạng thái hiện tại.
-        """
-        cost = self.cost_function.calculate_cost(self.state)
-        return cost
+    def energy(self):
+        return self.cost_function.calculate_cost(self.state)
