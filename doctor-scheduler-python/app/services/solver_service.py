@@ -1,5 +1,6 @@
 import random
 import math
+import time
 from simanneal import Annealer
 import datetime
 from collections import defaultdict
@@ -203,3 +204,14 @@ class ScheduleAnnealer(Annealer):
 
     def energy(self):
         return self.cost_function.calculate_cost(self.state)
+    
+
+def update(self, step, T, E, acceptance, improvement):
+        """
+        Hàm này được gọi tự động sau mỗi (steps / updates) vòng lặp.
+        step: Vòng lặp hiện tại
+        T: Nhiệt độ hiện tại
+        E: Năng lượng (Cost) hiện tại
+        """
+        elapsed = datetime.time.time() - self.start
+        print(f"--> [AI Running] Vòng: {step:6d}/{self.steps} | Cost: {E:10.2f} | Nhiệt độ: {T:8.4f} | Giây: {elapsed:.2f}s")

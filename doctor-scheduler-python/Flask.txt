@@ -1,15 +1,3 @@
-Setting nenv
-Bước 1 cd thư mục project
-	cd project
-Bước 2 Tạo venv
-	python -m venv venv
-Bước 3 active venv có ở dòng terminal
-	.\venv\Scripts\activate
-Bước 4 cài đặt thư viện cần thiết
-	pip install -r requirements.txt
-Bước 5 đường link csdl
-	file .venv -> link CSDL
-Sao chép file này vô tạo csdl
 
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'HospitalSchedulerDB')
 BEGIN
@@ -24,15 +12,33 @@ BEGIN
 END
 GO
 
+python reset_db.py
+flask seed all
+flask run
 
-Bước 6 cập nhật db
-	flask db upgrade
-Bước 7 render db có sẳn
-	flask seed all
-Bước 10 : Chạy trên terminal
-flask run 
-    + --debug
-        + --no-reload
+"Tại sao dùng Simulated Annealing mà không dùng vét cạn (Brute Force) thử hết các trường hợp?"
+"Vì số lượng tổ hợp là quá lớn. Với hàng chục bác sĩ và 30 ngày, 
+số trường hợp xếp lịch lớn hơn cả số hạt cát trên vũ trụ. 
+Vét cạn sẽ tốn hàng nghìn năm, 
+còn thuật toán này chỉ tốn vài giây để tìm ra phương án 'đủ tốt'."
 
-flask db init
-flask db upgrade
+
+Hãy thử làm một phép tính ước lượng (Estimation):
+Giả sử bạn xếp lịch cho 1 tháng (30 ngày).Có khoảng 20 bác sĩ.
+Trường hợp xấu nhất: Tất cả bác sĩ đều phải trực vào ngày họ "ghét" (điểm phạt nguyện vọng).
+Tổng lỗi mềm tối đa  20 bác sĩ  30 ngày  10 điểm phạt = 6.000 điểm.
+Kết luận:Nếu bạn chọn W_HARD = 5.000: 
+Thuật toán có thể sẽ chọn cách vi phạm luật 
+(mất 5.000 điểm) để đổi lấy việc làm hài lòng mọi người (tránh mất 6.000 điểm).
+-> SAI NGHIỆP VỤ.
+Nếu bạn chọn W_HARD = 10.000: Con số này lớn hơn 6.000. 
+Do đó, dù lỗi mềm có cộng dồn bao nhiêu đi nữa cũng không bao giờ "nặng" bằng 1 lỗi cứng. 
+-> ĐÚNG NGHIỆP VỤ.
+
+ Tại sao không chọn số lớn hơn hẳn (ví dụ 1 tỷ)?
+Nếu chọn số quá lớn (ví dụ 1.000.000.000), thuật toán vẫn chạy đúng, 
+nhưng đồ thị "Năng lượng" (Energy) sẽ bị dẹt. 
+Sự chênh lệch quá lớn đôi khi làm giảm độ nhạy của thuật toán trong giai đoạn đầu (nhiệt độ cao), 
+khiến nó khó tìm đường thoát khỏi các điểm cực trị địa phương.
+Tóm lại: Số 10.000 và 10 được chọn vì chúng tạo ra một khoảng cách an toàn (gap) đủ lớn để phân biệt ưu tiên,
+ nhưng không quá lớn để gây khó khăn cho việc tính toán số học.

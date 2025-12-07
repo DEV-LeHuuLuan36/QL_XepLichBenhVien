@@ -55,11 +55,16 @@ class SchedulingService:
             cost_function = CostFunction(context_data)
             annealer = ScheduleAnnealer(initial_state, cost_function) 
 
-            # Cấu hình AI
-            annealer.Tmax = 50000.0  
-            annealer.Tmin = 2.5      
-            annealer.steps = 50000    # Số bước lặp
-            annealer.updates = 100   
+             # Cấu hình AI (có thể tăng 'steps' nếu muốn chạy kỹ hơn)
+            # độ nóng cùa quá trình luyện kim càng cao thì càng dễ thoát cực tiểu cục bộ
+            annealer.Tmax = 25000.0  
+            # độ lạnh của quá trình luyện kim càng thấp thì càng dễ hội tụ vào nghiệm tối ưu
+            annealer.Tmin = 2.5     
+            #số bước lập càng cao thì càng tốt nhưng càng tốn thời gian 
+            annealer.steps = 100000   # số bước lập
+            # Biến này giúp theo dõi sức khỏe của thuật toán theo thời gian thực mà không làm tràn bộ nhớ console vì in quá nhiều
+            annealer.updates = 10   
+            
             
             print(f"Service: Bắt đầu chạy Annealer cho Job {job_id}...")
             best_state, best_cost = annealer.anneal() 
