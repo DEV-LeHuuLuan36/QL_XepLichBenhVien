@@ -55,20 +55,39 @@ class SchedulingService:
             cost_function = CostFunction(context_data)
             annealer = ScheduleAnnealer(initial_state, cost_function) 
 
-             # Cấu hình AI (có thể tăng 'steps' nếu muốn chạy kỹ hơn)
-            # độ nóng cùa quá trình luyện kim càng cao thì càng dễ thoát cực tiểu cục bộ
+            # ============================================================
+            # CẤU HÌNH THAM SỐ CHO THUẬT TOÁN SIMULATED ANNEALING (AI)
+            # ============================================================
+            
+            # 1. Tmax (Nhiệt độ đầu): Độ "nóng" ban đầu.
+            # - Ý nghĩa: Nhiệt độ càng cao, thuật toán càng dễ chấp nhận các phương án xấu hơn tạm thời.
+            # - Tác dụng: Giúp thuật toán "nhảy" ra khỏi các hố sâu cục bộ (local minima) để tìm vùng đất mới tốt hơn.
             annealer.Tmax = 25000.0  
-            # độ lạnh của quá trình luyện kim càng thấp thì càng dễ hội tụ vào nghiệm tối ưu
-            annealer.Tmin = 2.5     
-            #số bước lập càng cao thì càng tốt nhưng càng tốn thời gian 
-            annealer.steps = 100000   # số bước lập
-            # Biến này giúp theo dõi sức khỏe của thuật toán theo thời gian thực mà không làm tràn bộ nhớ console vì in quá nhiều
+
+            # 2. Tmin (Nhiệt độ cuối): Độ "lạnh" kết thúc.
+            # - Ý nghĩa: Khi nhiệt độ giảm dần về Tmin, thuật toán trở nên khắt khe.
+            # - Tác dụng: Giai đoạn này giúp thuật toán "tinh chỉnh" (fine-tune) để hội tụ về kết quả tốt nhất có thể.
+            annealer.Tmin = 2.5      
+
+            # 3. Steps (Tổng số bước lặp):
+            # - Ý nghĩa: Tổng số lần thuật toán thử thay đổi lịch để tìm phương án tốt hơn.
+            # - Tác dụng: Số bước càng lớn -> khả năng tìm ra lịch tối ưu càng cao, nhưng thời gian chạy càng lâu.
+            annealer.steps = 50000   
+
+            # 4. Updates (Tần suất báo cáo):
+            # - Ý nghĩa: Chia tổng số bước (steps) cho số này để quyết định bao lâu in log ra console một lần.
+            # - Ví dụ: steps=100.000, updates=10 => Cứ mỗi 10.000 bước sẽ in ra 1 dòng log.
+            # - Tác dụng: Giúp theo dõi "sức khỏe" thuật toán chạy theo thời gian thực mà không làm tràn màn hình console.
             annealer.updates = 10   
             
-            
+            # ============================================================
+
             print(f"Service: Bắt đầu chạy Annealer cho Job {job_id}...")
             best_state, best_cost = annealer.anneal() 
             print(f"Service: Hoàn thành. Chi phí tốt nhất: {best_cost}")
+
+            print(f"Service: Đang phân tích chi tiết kết quả...")
+            cost_function.print_detailed_report(best_state) 
 
             print(f"Service: Lưu kết quả cho Job {job_id}...")
             self._save_results(job, best_state, context_data) 

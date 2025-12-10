@@ -111,6 +111,12 @@ class CostFunction:
                         if self.ctx.leaves_map.get((doc_id, date), False):
                             total_cost += self.W_HARD # Phạt nếu đi làm ngày xin nghỉ
 
+                        # --- Check Nguyện vọng (SOFT) ---
+                        pref_score = self.ctx.preferences_map.get((doc_id, shift_id, date.weekday()), 0)
+                        if pref_score < 0:
+                            # Nếu phải làm vào ngày ghét (score âm) -> Phạt
+                            total_cost += abs(pref_score) * self.W_SOFT
+
                     # 1. KIỂM TRA ĐỊNH BIÊN (Thiếu người là phạt)
                     if count_main < clinic.required_main:
                         total_cost += (clinic.required_main - count_main) * self.W_HARD
@@ -151,6 +157,93 @@ class CostFunction:
                      total_cost += self.W_HARD * 2 # Phạt rất nặng nếu làm 2 ca cùng ngày
 
         return total_cost
+
+    def print_detailed_report(self, state: ScheduleState):
+        """
+        Hàm này chỉ gọi 1 lần khi kết thúc để báo cáo chi tiết các lỗi.
+        """
+        print("\n" + "="*60)
+        print("BÁO CÁO CHI TIẾT ĐIỂM PHẠT (COST BREAKDOWN)")
+        print("="*60)
+        
+        total_cost = 0.0
+        details = []
+        doc_shift_history = defaultdict(list)
+
+        # 1. KIỂM TRA ĐỊNH BIÊN (HARD) VÀ NGUYỆN VỌNG (SOFT)
+        for date, c_data in state.assignments.items():
+            for clinic_id, s_data in c_data.items():
+                clinic = self.ctx.clinics_map.get(clinic_id)
+                for shift_id, doc_ids in s_data.items():
+                    # Check định biên
+                    count_main = sum(1 for d in doc_ids if self.ctx.doctors_map[d].role == DoctorRole.MAIN)
+                    count_sub = len(doc_ids) - count_main
+                    
+                    if count_main < clinic.required_main:
+                        missing = clinic.required_main - count_main
+                        penalty = missing * self.W_HARD
+                        details.append(f"[HARD] Ngày {date} - {clinic.name}: Thiếu {missing} BS Chính -> +{penalty}")
+                        total_cost += penalty
+                    
+                    if count_sub < clinic.required_sub:
+                        missing = clinic.required_sub - count_sub
+                        penalty = missing * self.W_HARD
+                        details.append(f"[HARD] Ngày {date} - {clinic.name}: Thiếu {missing} BS Phụ -> +{penalty}")
+                        total_cost += penalty
+
+                    # Check bác sĩ
+                    shift = self.ctx.shifts_map[shift_id]
+                    shift_start = datetime.datetime.combine(date, shift.start_time)
+                    
+                    for doc_id in doc_ids:
+                        doc = self.ctx.doctors_map[doc_id]
+                        doc_shift_history[doc_id].append(shift_start)
+                        
+                        # Check nghỉ phép
+                        if self.ctx.leaves_map.get((doc_id, date), False):
+                            penalty = self.W_HARD
+                            details.append(f"[HARD] BS {doc.name}: Đi làm ngày xin nghỉ ({date}) -> +{penalty}")
+                            total_cost += penalty
+                        
+                        # Check nguyện vọng
+                        pref_score = self.ctx.preferences_map.get((doc_id, shift_id, date.weekday()), 0)
+                        if pref_score < 0:
+                            penalty = abs(pref_score) * self.W_SOFT
+                            details.append(f"[SOFT] BS {doc.name}: Phải trực ca ghét (Score {pref_score}) -> +{penalty}")
+                            total_cost += penalty
+
+        # 2. KIỂM TRA LUẬT LAO ĐỘNG (HARD)
+        SHIFT_DURATION = 8
+        for doc_id, shifts in doc_shift_history.items():
+            shifts.sort()
+            doc_name = self.ctx.doctors_map[doc_id].name
+            
+            # Check 48h/tuần
+            hours = len(shifts) * SHIFT_DURATION
+            if hours > 48:
+                penalty = (hours - 48) * self.W_HARD
+                details.append(f"[HARD] BS {doc_name}: Làm quá {hours}h -> +{penalty}")
+                total_cost += penalty
+
+            # Check nghỉ ngơi 12h
+            for i in range(len(shifts) - 1):
+                curr = shifts[i]
+                next_s = shifts[i+1]
+                rest = (next_s - (curr + datetime.timedelta(hours=8))).total_seconds() / 3600
+                if rest < 12:
+                    penalty = self.W_HARD
+                    details.append(f"[HARD] BS {doc_name}: Nghỉ ít ({rest:.1f}h) giữa 2 ca -> +{penalty}")
+                    total_cost += penalty
+
+        # IN RA MÀN HÌNH
+        if not details:
+            print(">> TUYỆT VỜI! KHÔNG CÓ LỖI NÀO (Cost = 0).")
+        else:
+            for line in details:
+                print(line)
+            print("-" * 60)
+            print(f"TỔNG CỘNG COST TÍNH ĐƯỢC: {total_cost}")
+        print("="*60 + "\n")
 
 # =================================================================
 # 4. ANNEALER (Bộ giải thuật toán)
@@ -198,20 +291,15 @@ class ScheduleAnnealer(Annealer):
             return
 
         # Thực hiện hoán đổi
-        # Vì assignments là list of ints, ta cần thao tác cẩn thận
         current_docs.remove(doc_out_id)
         current_docs.append(doc_in_id)
 
     def energy(self):
         return self.cost_function.calculate_cost(self.state)
     
-
-def update(self, step, T, E, acceptance, improvement):
+    def update(self, step, T, E, acceptance, improvement):
         """
         Hàm này được gọi tự động sau mỗi (steps / updates) vòng lặp.
-        step: Vòng lặp hiện tại
-        T: Nhiệt độ hiện tại
-        E: Năng lượng (Cost) hiện tại
         """
-        elapsed = datetime.time.time() - self.start
+        elapsed = time.time() - self.start
         print(f"--> [AI Running] Vòng: {step:6d}/{self.steps} | Cost: {E:10.2f} | Nhiệt độ: {T:8.4f} | Giây: {elapsed:.2f}s")
