@@ -216,3 +216,53 @@ class SchedulingService:
     def _daterange(self, start_date, end_date):
         for n in range(int((end_date - start_date).days) + 1):
             yield start_date + datetime.timedelta(n)
+
+    # FILE: app/services/scheduling_service.py
+
+    # Thêm hàm phụ trợ này vào trong class SchedulingService
+    def _is_shift_needed(self, clinic_name, shift_name):
+        # Nếu khoa có chữ "24/7" -> Cần mọi ca
+        if "24/7" in clinic_name:
+            return True
+        # Nếu khoa thường -> Chỉ nhận ca Sáng và Chiều (Bỏ ca Đêm)
+        if "Đêm" in shift_name:
+            return False
+        return True
+
+    def _create_smart_initial_solution(self, ctx: ScheduleContextData) -> dict:
+        assignments = {} 
+
+        for date in ctx.date_range:
+            assignments[date] = {}
+            
+            for clinic in ctx.clinics:
+                clinic_id = clinic.id
+                assignments[date][clinic_id] = {}
+                
+                main_candidates = ctx.doctors_by_clinic[clinic_id]['main']
+                sub_candidates = ctx.doctors_by_clinic[clinic_id]['sub']
+                
+                for shift in ctx.shifts:
+                    # [QUAN TRỌNG] Kiểm tra xem khoa này có cần trực ca này không
+                    if not self._is_shift_needed(clinic.name, shift.name):
+                        continue # Bỏ qua, không xếp người
+
+                    shift_id = shift.id
+                    assigned_docs = []
+
+                    # Logic chọn người như cũ
+                    req_main = clinic.required_main
+                    if len(main_candidates) >= req_main:
+                        assigned_docs.extend(random.sample(main_candidates, k=req_main))
+                    else:
+                        assigned_docs.extend(main_candidates)
+
+                    req_sub = clinic.required_sub
+                    if len(sub_candidates) >= req_sub:
+                        assigned_docs.extend(random.sample(sub_candidates, k=req_sub))
+                    else:
+                        assigned_docs.extend(sub_candidates)
+                    
+                    assignments[date][clinic_id][shift_id] = assigned_docs
+        
+        return assignments

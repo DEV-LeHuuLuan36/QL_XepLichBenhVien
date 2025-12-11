@@ -67,44 +67,38 @@ def register_seeder(app):
             all_shifts = db.session.scalars(select(Shift)).all()
 
             # === BƯỚC 3: TẠO KHOA VÀ BÁC SĨ ===
-            print("3/5: Tạo Khoa và Bác sĩ biên chế (Khoảng 20 người/khoa)...")
+            print("3/5: Tạo 10 Khoa (3 Khoa 24/7, 7 Khoa Hành chính)...")
             
-            clinic_names = [
-                "Khoa Cấp Cứu", 
-                "Khoa Hồi Sức Tích Cực (ICU)", 
-                "Khoa Nội Tổng Quát", 
-                "Khoa Ngoại", 
-                "Khoa Nhi"
+            # 3 Khoa trực 24/7
+            clinics_247 = ["Khoa Cấp Cứu (24/7)", "Khoa Hồi Sức (24/7)", "Khoa Nội Trú (24/7)"]
+            # 7 Khoa chỉ làm ngày
+            clinics_day = [
+                "Khoa Mắt", "Khoa Da Liễu", "Khoa Tai Mũi Họng", 
+                "Khoa Răng Hàm Mặt", "Khoa Y Học Cổ Truyền", 
+                "Khoa Vật Lý Trị Liệu", "Khoa Dinh Dưỡng"
             ]
             
-            for c_name in clinic_names:
-                # Tạo Khoa: Cấu hình mặc định 2 Chính, 1 Phụ
-                clinic = Clinic(
-                    name=c_name, 
-                    required_main=2, 
-                    required_sub=1
-                )
+            all_clinic_names = clinics_247 + clinics_day
+            
+            for c_name in all_clinic_names:
+                # Cấu hình: Mỗi ca chỉ cần tối thiểu 1 Bác sĩ Chính
+                clinic = Clinic(name=c_name, required_main=1, required_sub=0)
                 db.session.add(clinic)
-                db.session.commit() # Commit để lấy ID
+                db.session.commit()
                 
-                # Tạo 20 Bác sĩ cho khoa này
-                # Tỷ lệ: 12 Chính (để đủ xoay tua 3 ca * 2 người = 6 slot/ngày), 8 Phụ
+                # Tạo 3 bác sĩ cho mỗi khoa (Tổng 30 bác sĩ)
                 doctors_for_clinic = []
-                for i in range(20):
-                    is_main = i < 12 # 12 người đầu là Chính
-                    role = DoctorRole.MAIN if is_main else DoctorRole.SUB
-                    
+                for i in range(3):
+                    role = DoctorRole.MAIN if i < 2 else DoctorRole.SUB # 2 Chính, 1 Phụ
                     full_name = f"{random.choice(LAST_NAMES)} {random.choice(FIRST_NAMES)}"
                     
                     doc = Doctor(
                         name=full_name,
-                        specialty=c_name, # Chuyên khoa theo tên Khoa
+                        specialty=c_name,
                         role=role,
-                        clinic_id=clinic.id, # Gán biên chế về khoa này
-                        total_shifts_worked=0
+                        clinic_id=clinic.id
                     )
                     doctors_for_clinic.append(doc)
-                
                 db.session.add_all(doctors_for_clinic)
             
             db.session.commit()

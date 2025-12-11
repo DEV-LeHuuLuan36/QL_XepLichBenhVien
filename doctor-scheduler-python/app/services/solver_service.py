@@ -253,44 +253,42 @@ class ScheduleAnnealer(Annealer):
         self.cost_function = cost_function
         super(ScheduleAnnealer, self).__init__(initial_state)
 
+    # FILE: app/services/solver_service.py (Sửa method move trong class ScheduleAnnealer)
+
     def move(self):
-        """
-        Hàm biến đổi trạng thái (Mutation).
-        Chiến lược: Chỉ thay đổi bác sĩ trong cùng 1 Khoa và cùng Vai trò 
-        để giữ cấu trúc định biên (Initial Solution đã đúng định biên rồi).
-        """
         ctx = self.cost_function.ctx
         
-        # 1. Chọn ngẫu nhiên 1 slot (Ngày, Khoa, Ca)
+        # 1. Chọn ngày ngẫu nhiên
         if not ctx.date_range or not ctx.clinics or not ctx.shifts: return
-        
         date = random.choice(ctx.date_range)
+        
+        # 2. Chọn Khoa ngẫu nhiên
         clinic_id = random.choice(list(ctx.clinics_map.keys()))
-        shift_id = random.choice(list(ctx.shifts_map.keys()))
+        clinic = ctx.clinics_map[clinic_id]
+
+        # 3. [QUAN TRỌNG] Chỉ chọn Ca trực CÓ THỰC (đã được tạo trong initial solution)
+        # Nếu chọn random shift từ ctx.shifts, ta có thể trúng ca Đêm của khoa Mắt (vốn không tồn tại)
+        existing_shifts = list(self.state.assignments[date][clinic_id].keys())
+        if not existing_shifts: return
+        
+        shift_id = random.choice(existing_shifts)
         
         current_docs = self.state.assignments[date][clinic_id][shift_id]
         if not current_docs: return
         
-        # 2. Chọn 1 bác sĩ đang trực để thay ra (OUT)
+        # ... (Phần logic đổi người doc_out / doc_in giữ nguyên như cũ)
         doc_out_id = random.choice(current_docs)
         doc_out = ctx.doctors_map.get(doc_out_id)
         if not doc_out: return
 
-        # 3. Tìm người thay thế (IN) hợp lệ:
-        # - Phải CÙNG KHOA (clinic_id)
-        # - Phải CÙNG VAI TRÒ (Main đổi Main, Sub đổi Sub)
         role_key = 'main' if doc_out.role == DoctorRole.MAIN else 'sub'
         candidates = ctx.doctors_by_clinic[clinic_id][role_key]
         
         if not candidates: return
-        
         doc_in_id = random.choice(candidates)
         
-        # Nếu người vào đã có trong ca này rồi thì bỏ qua (tránh trùng lặp)
-        if doc_in_id in current_docs:
-            return
+        if doc_in_id in current_docs: return
 
-        # Thực hiện hoán đổi
         current_docs.remove(doc_out_id)
         current_docs.append(doc_in_id)
 
