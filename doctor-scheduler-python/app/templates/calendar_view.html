@@ -89,7 +89,6 @@ Xem Lịch trực
         </div>
     {% else %}
         
-        <!-- Header: Tên Job và Trạng thái -->
         <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
             <div>
                 <h3 class="mb-1 text-primary">
@@ -106,10 +105,8 @@ Xem Lịch trực
             </div>
         </div>
 
-        <!-- THANH CÔNG CỤ (TOOLBAR) -->
         <div class="calendar-toolbar">
             
-            <!-- 1. Bộ lọc Khoa (Client-side) -->
             <div class="filter-group">
                 <label for="clinicFilter" class="filter-label"><i class="bi bi-funnel-fill text-primary"></i> Lọc Khoa:</label>
                 <select class="form-select form-select-sm" id="clinicFilter" onchange="filterSchedule()" style="min-width: 200px;">
@@ -120,18 +117,15 @@ Xem Lịch trực
                 </select>
             </div>
 
-            <!-- 2. Bộ lọc Thời gian (Server-side) -->
             <div class="filter-group border-start ps-3">
                 <label class="filter-label me-2"><i class="bi bi-eye text-success"></i> Chế độ xem:</label>
                 
                 <form action="{{ url_for('main.view_calendar', job_id=job.id) }}" method="GET" class="d-flex align-items-center gap-2">
-                    <!-- Chọn ngày mốc -->
                     <input type="date" name="date" class="form-control form-control-sm" 
                            value="{{ current_date }}" 
                            title="Chọn ngày muốn xem" 
                            style="width: 130px;">
                     
-                    <!-- Các nút chuyển chế độ -->
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="submit" name="view_mode" value="day" 
                                 class="btn btn-outline-primary {% if current_view == 'day' %}active{% endif %}">
@@ -149,7 +143,6 @@ Xem Lịch trực
                 </form>
             </div>
 
-            <!-- 3. Chú thích -->
             <div class="filter-group border-start ps-3 d-none d-lg-flex">
                 <small class="text-muted fst-italic">
                     <span class="role-badge role-main">C</span> = Chính &nbsp;
@@ -158,17 +151,14 @@ Xem Lịch trực
             </div>
         </div>
 
-        <!-- BẢNG LỊCH (SHIFT-BASED MATRIX) -->
         <div class="matrix-table-wrapper">
             <table class="matrix-table table-hover" id="scheduleTable">
                 <thead>
                     <tr>
-                        <!-- Cột Tiêu đề Ca -->
                         <th class="matrix-doctor-name text-center bg-light" style="width: 150px; min-width: 150px;">
                             CA TRỰC
                         </th>
                         
-                        <!-- Header Ngày -->
                         {% for date in date_range %}
                             {% set weekday = date.weekday() %}
                             <th class="matrix-header-day 
@@ -183,7 +173,6 @@ Xem Lịch trực
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Định nghĩa 3 ca trực chuẩn -->
                     {% set shifts_def = [
                         ('Sáng', 'Ca Sáng', '06:00 - 14:00', 'text-warning', 'bi-brightness-alt-high-fill'),
                         ('Chiều', 'Ca Chiều', '14:00 - 22:00', 'text-info', 'bi-sunset-fill'),
@@ -192,7 +181,6 @@ Xem Lịch trực
 
                     {% for keyword, label, hours, color_class, icon in shifts_def %}
                     <tr>
-                        <!-- Header Hàng: Tên Ca + Giờ -->
                         <th class="matrix-doctor-name bg-white text-center align-middle">
                             <div class="fs-6 fw-bold {{ color_class }}">
                                 <i class="bi {{ icon }}"></i> {{ label.upper() }}
@@ -200,31 +188,35 @@ Xem Lịch trực
                             <div class="small text-muted">{{ hours }}</div>
                         </th>
                         
-                        <!-- Các ô ngày -->
                         {% for date in date_range %}
                             <td class="matrix-cell">
                                 <div class="d-flex flex-column gap-1">
                                     {% for doctor in doctors_list %}
-                                        {% set assign = assignments_map[doctor.id].get(date) %}
-                                        <!-- Kiểm tra nếu bác sĩ có lịch vào ngày này VÀ tên ca chứa từ khóa (Sáng/Chiều/Đêm) -->
-                                        {% if assign and keyword in assign.shift_name %}
-                                            <div class="doctor-badge clinic-item clinic-{{ doctor.clinic_id if doctor.clinic_id else 'none' }} 
-                                                        {% if doctor.role.value == 'Chính' %}border-primary{% else %}border-secondary{% endif %}"
-                                                 style="background-color: {% if doctor.role.value == 'Chính' %}#e7f1ff{% else %}#f8f9fa{% endif %}; 
-                                                        border-left: 3px solid {% if doctor.role.value == 'Chính' %}#0d6efd{% else %}#6c757d{% endif %};
-                                                        padding: 4px 6px; border-radius: 4px; font-size: 0.85em; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                                
-                                                <!-- Tên Bác sĩ -->
-                                                <span class="fw-bold text-dark">{{ doctor.name }}</span>
-                                                
-                                                <!-- Vai trò -->
-                                                {% if doctor.role.value == 'Chính' %}
-                                                    <span class="text-primary fw-bold float-end" style="font-size: 0.8em;">(C)</span>
-                                                {% else %}
-                                                    <span class="text-muted fw-bold float-end" style="font-size: 0.8em;">(P)</span>
-                                                {% endif %}
-                                            </div>
-                                        {% endif %}
+                                        
+                                        {# --- [SỬA ĐỔI QUAN TRỌNG] Lấy danh sách các ca và duyệt qua --- #}
+                                        {% set assigns = assignments_map[doctor.id].get(date, []) %}
+                                        
+                                        {% for assign in assigns %}
+                                            {# Kiểm tra nếu ca này khớp với hàng hiện tại (Sáng/Chiều/Đêm) #}
+                                            {% if keyword in assign.shift_name %}
+                                                <div class="doctor-badge clinic-item clinic-{{ doctor.clinic_id if doctor.clinic_id else 'none' }} 
+                                                            {% if doctor.role.value == 'Chính' %}border-primary{% else %}border-secondary{% endif %}"
+                                                     style="background-color: {% if doctor.role.value == 'Chính' %}#e7f1ff{% else %}#f8f9fa{% endif %}; 
+                                                            border-left: 3px solid {% if doctor.role.value == 'Chính' %}#0d6efd{% else %}#6c757d{% endif %};
+                                                            padding: 4px 6px; border-radius: 4px; font-size: 0.85em; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                                    
+                                                    <span class="fw-bold text-dark">{{ doctor.name }}</span>
+                                                    
+                                                    {% if doctor.role.value == 'Chính' %}
+                                                        <span class="text-primary fw-bold float-end" style="font-size: 0.8em;">(C)</span>
+                                                    {% else %}
+                                                        <span class="text-muted fw-bold float-end" style="font-size: 0.8em;">(P)</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                        {# --- KẾT THÚC SỬA ĐỔI --- #}
+
                                     {% endfor %}
                                 </div>
                             </td>
@@ -235,7 +227,6 @@ Xem Lịch trực
             </table>
         </div>
         
-        <!-- Footer đếm số lượng -->
         <div class="mt-3 d-flex justify-content-between text-muted small">
             <div>
                 Đang hiển thị <span id="visibleCount" class="fw-bold text-dark">--</span> lượt trực.
@@ -254,7 +245,6 @@ Xem Lịch trực
     </div>
 </div>
 
-<!-- JAVASCRIPT LỌC KHOA (Client-side) -->
 <script>
     function filterSchedule() {
         const filterValue = document.getElementById('clinicFilter').value;

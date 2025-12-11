@@ -324,24 +324,24 @@ def view_calendar(job_id):
     )
     all_assignments = db.session.scalars(stmt).all()
 
-    assignments_map = defaultdict(lambda: defaultdict(dict))
+    # --- [SỬA ĐỔI] Dùng list để chứa nhiều ca trong 1 ngày ---
+    assignments_map = defaultdict(lambda: defaultdict(list)) 
     doctors_in_schedule = {} 
 
     for assign in all_assignments:
         color = ['primary', 'success', 'danger', 'secondary'][assign.shift_id % 4]
         
-        assignments_map[assign.doctor_id][assign.assignment_date] = {
+        # --- [SỬA ĐỔI] Append vào list thay vì gán đè ---
+        assignments_map[assign.doctor_id][assign.assignment_date].append({
             "shift_name": assign.shift.name,
             "clinic_name": assign.clinic.name,
             "color": color
-        }
+        })
+        
         if assign.doctor_id not in doctors_in_schedule:
             doctors_in_schedule[assign.doctor_id] = assign.doctor
 
     # --- SẮP XẾP DANH SÁCH BÁC SĨ (Logic Mới) ---
-    # Ưu tiên 1: Tên Khoa (Gom nhóm theo khoa)
-    # Ưu tiên 2: Vai trò (Chính trước - 0, Phụ sau - 1)
-    # Ưu tiên 3: Tên Bác sĩ
     doctors_list = sorted(
         doctors_in_schedule.values(), 
         key=lambda doc: (

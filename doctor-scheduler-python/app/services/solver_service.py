@@ -232,8 +232,7 @@ class ScheduleAnnealer(Annealer):
     
     def update(self, step, T, E, acceptance, improvement):
         elapsed = time.time() - self.start
-        
-        # --- [FIX LỖI] KIỂM TRA NONE ---
+
         if acceptance is None: acceptance = 0.0
         if improvement is None: improvement = 0.0
         
@@ -253,12 +252,12 @@ class ScheduleAnnealer(Annealer):
         
         # HIỂN THỊ LOG FORMAT ĐẸP
         print("-" * 100)
-        print(f"📊 BƯỚC: {step:6d} / {self.steps}  |  Nhiệt độ (T): {T:10.2f}  |  Thời gian: {elapsed:.1f}s")
-        print(f"   ➤ Cost Hiện tại: {E:10.0f}  |  🏆 Best Cost: {current_best:10.0f} (Cập nhật cách đây {steps_since_imp} bước)")
+        print(f" BƯỚC: {step:6d} / {self.steps}  |  Nhiệt độ (T): {T:10.2f}  |  Thời gian: {elapsed:.1f}s")
+        print(f"   ➤ Cost Hiện tại: {E:10.0f}  |   Best Cost: {current_best:10.0f} (Cập nhật cách đây {steps_since_imp} bước)")
         
         print(f"   ➤ Trạng thái bước đi:")
         print(f"     • Thay đổi: {self.last_move_vars} vị trí (ca trực)")
-        print(f"     • Tỷ lệ Chấp nhận: {accept_rate_pct:5.1f}%  (✅ Tốt: {good_rate_pct:4.1f}% | ⚠️ Rủi ro: {bad_rate_pct:4.1f}%)")
+        print(f"     • Tỷ lệ Chấp nhận: {accept_rate_pct:5.1f}%  ( Tốt: {good_rate_pct:4.1f}% |  Rủi ro: {bad_rate_pct:4.1f}%)")
         print(f"     • Tốc độ xử lý:    {avg_time_ms:5.2f} ms/bước")
         
         print(f"   ➤ Phân tích Lỗi (Ràng buộc):")
